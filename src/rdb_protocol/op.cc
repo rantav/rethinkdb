@@ -1,7 +1,7 @@
 #include "rdb_protocol/op.hpp"
 
 #include "rdb_protocol/func.hpp"
-#include "rdb_protocol/pb_utils.hpp"
+#include "rdb_protocol/minidriver.hpp"
 
 #pragma GCC diagnostic ignored "-Wshadow"
 
@@ -104,8 +104,7 @@ counted_t<func_t> op_term_t::lazy_literal_optarg(const std::string &key) {
     std::map<std::string, counted_t<term_t> >::iterator it = optargs.find(key);
     if (it != optargs.end()) {
         protob_t<Term> func(make_counted_term());
-        Term *arg = func.get();
-        N2(FUNC, N0(MAKE_ARRAY), *arg = *it->second->get_src().get());
+        ql::r.fun(ql::r.expr(*it->second->get_src().get())).swap(*func.get());
         return make_counted<func_t>(env, func);
     }
     return counted_t<func_t>();

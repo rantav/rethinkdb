@@ -22,7 +22,7 @@
 #include "rdb_protocol/env.hpp"
 #include "rdb_protocol/func.hpp"
 #include "rdb_protocol/transform_visitors.hpp"
-#include "rdb_protocol/pb_utils.hpp"
+#include "rdb_protocol/minidriver.hpp"
 #include "rdb_protocol/term_walker.hpp"
 #include "rpc/semilattice/view/field.hpp"
 #include "rpc/semilattice/watchable.hpp"
@@ -1659,35 +1659,24 @@ region_t rdb_protocol_t::cpu_sharding_subspace(int subregion_number,
 
 void rdb_protocol_t::sindex_range_t::write_filter_func(
     ql::env_t *env, Term *filter, const Term &sindex_mapping) const {
-    int arg1 = env->gensym();
-    int sindex_val = env->gensym();
-    Term *arg = ql::pb::set_func(filter, arg1);
+    ql::reql_t::var_t arg1(env);
+
     if (!start.has() && !end.has()) {
-        NDATUM_BOOL(true);
+        ql::r.fun(arg1, ql::r.boolean(true)).swap(*filter);
         return;
     }
 
-    N2(FUNCALL, arg = ql::pb::set_func(arg, sindex_val);
-       N2(ALL,
-          if (start.has()) {
-              if (start_open) {
-                  N2(GT, NVAR(sindex_val), NDATUM(start));
-              } else {
-                  N2(GE, NVAR(sindex_val), NDATUM(start));
-              }
-          } else {
-              NDATUM_BOOL(true);
-          },
-          if (end.has()) {
-              if (end_open) {
-                  N2(LT, NVAR(sindex_val), NDATUM(end));
-              } else {
-                  N2(LE, NVAR(sindex_val), NDATUM(end));
-              }
-          } else {
-              NDATUM_BOOL(true);
-          }),
-       N2(FUNCALL, *arg = sindex_mapping, NVAR(arg1)));
+    ql::reql_t::var_t sindex_val(env);
+
+    ql::reql_t predicate =
+        ql::r.fun(sindex_val,
+                  ( !start.has() ? ql::r.boolean(true) :
+                    start_open ? sindex_val > start : sindex_val >= start)
+                  && (
+                      !end.has() ? ql::r.boolean(true) :
+                      end_open ? sindex_val < end : sindex_val <= end)
+                  );
+    ql::r.fun(arg1, predicate(ql::r.expr(sindex_mapping)(arg1))).swap(*filter);
 }
 
 region_t rdb_protocol_t::sindex_range_t::to_region() const {

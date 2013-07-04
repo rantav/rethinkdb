@@ -4,7 +4,7 @@
 #include "rdb_protocol/env.hpp"
 #include "rdb_protocol/func.hpp"
 #include "rdb_protocol/meta_utils.hpp"
-#include "rdb_protocol/pb_utils.hpp"
+#include "rdb_protocol/minidriver.hpp"
 #include "rdb_protocol/term.hpp"
 
 #pragma GCC diagnostic ignored "-Wshadow"
@@ -125,13 +125,11 @@ std::vector<counted_t<const datum_t> > table_t::batch_replace(
                 counted_t<const datum_t> replacement =
                     replacement_generator->call(original_values[i])->as_datum();
 
-                Term t;
-                const int x = env->gensym();
-                Term *const arg = pb::set_func(&t, x);
-                replacement->write_to_protobuf(pb::set_datum(arg));
-                propagate(&t);
+                ql::reql_t::var_t x(*env);
+                ql::reql_t t = ql::r.fun(x, replacement);
+                propagate(&t.get());
 
-                funcs[i] = map_wire_func_t(t, std::map<int64_t, Datum>());
+                funcs[i] = map_wire_func_t(t.get(), std::map<int64_t, Datum>());
                 pairs[i] = datum_func_pair_t(original_values[i], &funcs[i]);
             } catch (const base_exc_t &exc) {
                 pairs[i] = datum_func_pair_t(make_error_datum(exc));
@@ -152,20 +150,15 @@ std::vector<counted_t<const datum_t> > table_t::batch_replace(
     std::vector<datum_func_pair_t> pairs(original_values.size());
     for (size_t i = 0; i < original_values.size(); ++i) {
         try {
-            Term t;
-            const int x = env->gensym();
-            Term *const arg = pb::set_func(&t, x);
-            if (upsert) {
-                replacement_values[i]->write_to_protobuf(pb::set_datum(arg));
-            } else {
-                N3(BRANCH,
-                   N2(EQ, NVAR(x), NDATUM(datum_t::R_NULL)),
-                   NDATUM(replacement_values[i]),
-                   N1(ERROR, NDATUM("Duplicate primary key.")));
-            }
-
-            propagate(&t);
-            funcs[i] = map_wire_func_t(t, std::map<int64_t, Datum>());
+            ql::reql_t::var_t x(*env);
+            ql::reql_t t =
+                ql::r.fun(x,
+                          upsert ? ql::r.expr(replacement_values[i]) :
+                          ql::r.branch(x == ql::r.null(),
+                                       replacement_values[i],
+                                       ql::r.error("Duplicate primary key.")));
+            propagate(&t.get());
+            funcs[i] = map_wire_func_t(t.get(), std::map<int64_t, Datum>());
             pairs[i] = datum_func_pair_t(original_values[i], &funcs[i]);
         } catch (const base_exc_t &exc) {
             pairs[i] = datum_func_pair_t(make_error_datum(exc));
@@ -369,20 +362,15 @@ counted_t<const datum_t> table_t::do_replace(counted_t<const datum_t> orig,
                                              bool upsert,
                                              durability_requirement_t durability_requirement,
                                              bool return_vals) {
-    Term t;
-    int x = env->gensym();
-    Term *arg = pb::set_func(&t, x);
-    if (upsert) {
-        d->write_to_protobuf(pb::set_datum(arg));
-    } else {
-        N3(BRANCH,
-           N2(EQ, NVAR(x), NDATUM(datum_t::R_NULL)),
-           NDATUM(d),
-           N1(ERROR, NDATUM("Duplicate primary key.")));
-    }
-
-    propagate(&t);
-    return do_replace(orig, map_wire_func_t(t, std::map<int64_t, Datum>()),
+    ql::reql_t::var_t x(*env);
+    ql::reql_t t =
+        ql::r.fun(x,
+                  upsert ? ql::r.expr(d) :
+                  ql::r.branch(x == ql::r.null(),
+                               d,
+                               ql::r.error("Duplicate primary key.")));
+    propagate(&t.get());
+    return do_replace(orig, map_wire_func_t(t.get(), std::map<int64_t, Datum>()),
                       durability_requirement, return_vals);
 }
 

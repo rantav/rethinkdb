@@ -5,7 +5,7 @@
 #include "rdb_protocol/error.hpp"
 #include "rdb_protocol/func.hpp"
 #include "rdb_protocol/op.hpp"
-#include "rdb_protocol/pb_utils.hpp"
+#include "rdb_protocol/minidriver.hpp"
 
 #pragma GCC diagnostic ignored "-Wshadow"
 
@@ -32,12 +32,8 @@ public:
         if (num_args() == 3) {
             index_func = arg(2)->as_func();
         } else {
-            protob_t<Term> func_term = make_counted_term();
-            int x = env->gensym();
-            {
-                Term *arg = pb::set_func(func_term.get(), x);
-                N2(GET_FIELD, NVAR(x), NDATUM(name_datum));
-            }
+            ql::reql_t::var_t x(env);
+            protob_t<Term> func_term = ql::r.fun(x, x[name_datum]).release_counted();
 
             prop_bt(func_term.get());
             index_func = make_counted<func_t>(env, func_term);

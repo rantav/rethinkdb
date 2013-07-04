@@ -4,7 +4,7 @@
 #include "rdb_protocol/counted_term.hpp"
 #include "rdb_protocol/env.hpp"
 #include "rdb_protocol/func.hpp"
-#include "rdb_protocol/pb_utils.hpp"
+#include "rdb_protocol/minidriver.hpp"
 #include "rdb_protocol/stream_cache.hpp"
 #include "rdb_protocol/term_walker.hpp"
 #include "rdb_protocol/validate.hpp"
@@ -204,13 +204,10 @@ void run(protob_t<Query> q, scoped_ptr_t<env_t> *env_ptr,
                 }
             }
 
-            protob_t<Term> ewt = make_counted_term();
-            Term *const arg = ewt.get();
+            ql::reql_t arg = ql::r.db("test");
 
-            N1(DB, NDATUM("test"));
-
-            propagate_backtrace(arg, t_bt); // duplicate toplevel backtrace
-            UNUSED bool _b = env->add_optarg("db", *arg);
+            propagate_backtrace(&arg.get(), t_bt); // duplicate toplevel backtrace
+            UNUSED bool _b = env->add_optarg("db", arg.get());
             //          ^^ UNUSED because user can override this value safely
 
             // Parse actual query
