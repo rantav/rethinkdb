@@ -5,7 +5,7 @@ Released on 2013-09-09
 Bug fix update.
 
 * Server
-  * Fixed a potential crashed caused by a coroutine switch in exception handlers (#153)
+  * Fixed a potential crash caused by a coroutine switch in exception handlers (#153)
   * No longer duplicate documents in the secondary indexes (#752)
   * Removed unnecessary conversions between `datum_t` and `cJSON` (#1041)
   * No longer load documents from disk for count queries (#1295)
